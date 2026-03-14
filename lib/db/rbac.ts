@@ -36,6 +36,11 @@ export type OrganizationUserWithRole = {
   membershipId: string;
 };
 
+type OrganizationUserSummaryRow = Pick<
+  Database["public"]["Tables"]["users"]["Row"],
+  "id" | "organization_id" | "email" | "first_name" | "last_name"
+>;
+
 export async function listRoleCatalogForOrganization(
   organizationId: string
 ): Promise<{ data: RoleCatalogRecord[]; error: PostgrestError | null }> {
@@ -153,8 +158,9 @@ export async function listOrganizationUsersWithRoles(
     return { data: [], error: userError };
   }
 
+  const userRows = (userData ?? []) as OrganizationUserSummaryRow[];
   const usersById = new Map(
-    (userData ?? []).map((user) => [
+    userRows.map((user) => [
       user.id,
       {
         email: user.email,
