@@ -5,8 +5,13 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import type { AppRole } from "@/types/compliance";
 import type { Database } from "@/types/database";
 
-import { getDatabaseClient } from "@/lib/db";
-import { ROLE_DEFINITIONS } from "@/lib/auth/rbac-config";
+import { getDatabaseClient, getPrivilegedDatabaseClient } from "@/lib/db";
+import {
+  PERMISSION_DEFINITIONS,
+  ROLE_DEFINITIONS,
+  ROLE_PERMISSION_MAP,
+  type PermissionName
+} from "@/lib/auth/rbac-config";
 
 type RoleRow = Database["public"]["Tables"]["roles"]["Row"];
 
@@ -62,15 +67,106 @@ export async function listRoleCatalogForOrganization(
 }
 
 export async function ensureOrganizationRbacCatalog(organizationId: string) {
-  const supabase = getDatabaseClient();
+  const supabase = getPrivilegedDatabaseClient();
   const roles: Database["public"]["Tables"]["roles"]["Insert"][] = ROLE_DEFINITIONS.map((role) => ({
     organization_id: organizationId,
     name: role.name,
     description: role.description
   }));
+  const permissions: Database["public"]["Tables"]["permissions"]["Insert"][] =
+    PERMISSION_DEFINITIONS.map((permission) => ({
+      organization_id: organizationId,
+      name: permission.name,
+      description: permission.description
+    }));
 
-  return supabase.from("roles").upsert(roles as never, {
+  const rolesResult = await supabase.from("roles").upsert(roles as never, {
     onConflict: "organization_id,name"
+  });
+
+  if (rolesResult.error) {
+    return rolesResult;
+  }
+
+  const permissionsResult = await supabase.from("permissions").upsert(permissions as never, {
+    onConflict: "organization_id,name"
+  });
+
+  if (permissionsResult.error) {
+    return permissionsResult;
+  }
+
+  const [roleRowsResult, permissionRowsResult] = await Promise.all([
+    supabase
+      .from("roles")
+      .select("id, name")
+      .eq("organization_id", organizationId)
+      .in(
+        "name",
+        ROLE_DEFINITIONS.map((role) => role.name)
+      ),
+    supabase
+      .from("permissions")
+      .select("id, name")
+      .eq("organization_id", organizationId)
+      .in(
+        "name",
+        PERMISSION_DEFINITIONS.map((permission) => permission.name)
+      )
+  ]);
+
+  if (roleRowsResult.error) {
+    return { data: null, error: roleRowsResult.error };
+  }
+
+  if (permissionRowsResult.error) {
+    return { data: null, error: permissionRowsResult.error };
+  }
+
+  const roleIdsByName = new Map(
+    ((roleRowsResult.data ?? []) as Array<{ id: string; name: AppRole }>).map((role) => [
+      role.name,
+      role.id
+    ])
+  );
+  const permissionIdsByName = new Map(
+    ((permissionRowsResult.data ?? []) as Array<{ id: string; name: PermissionName }>).map(
+      (permission) => [permission.name, permission.id]
+    )
+  );
+
+  const rolePermissions: Database["public"]["Tables"]["role_permissions"]["Insert"][] = [];
+
+  for (const [roleName, permissionNames] of Object.entries(ROLE_PERMISSION_MAP) as Array<
+    [AppRole, PermissionName[]]
+  >) {
+    const roleId = roleIdsByName.get(roleName);
+
+    if (!roleId) {
+      continue;
+    }
+
+    for (const permissionName of permissionNames) {
+      const permissionId = permissionIdsByName.get(permissionName);
+
+      if (!permissionId) {
+        continue;
+      }
+
+      rolePermissions.push({
+        organization_id: organizationId,
+        role_id: roleId,
+        permission_id: permissionId
+      });
+    }
+  }
+
+  if (rolePermissions.length === 0) {
+    return { data: null, error: null };
+  }
+
+  return supabase.from("role_permissions").upsert(rolePermissions as never, {
+    onConflict: "organization_id,role_id,permission_id"
   });
 }
 
