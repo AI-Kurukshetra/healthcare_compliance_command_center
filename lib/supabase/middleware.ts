@@ -5,6 +5,7 @@ import { getRouteRequiredPermission, roleHasPermission } from "@/lib/auth/rbac-c
 import { getAuthRedirectTarget, setAuthRedirectTarget } from "@/lib/auth/state";
 import { isAuthRoute, isProtectedRoute } from "@/lib/auth/routes";
 import { serverEnv } from "@/lib/env/server";
+import type { AppRole } from "@/types/compliance";
 import type { Database } from "@/types/database";
 
 function applyResponseCookies(source: NextResponse, target: NextResponse) {
@@ -85,8 +86,8 @@ export async function updateSession(request: NextRequest) {
       .maybeSingle();
     const membershipRecord = data as {
       role?: Database["public"]["Tables"]["organization_members"]["Row"]["role"];
-      roles?: { name?: Database["public"]["Tables"]["roles"]["Row"]["name"] } | Array<{
-        name?: Database["public"]["Tables"]["roles"]["Row"]["name"];
+      roles?: { name?: AppRole } | Array<{
+        name?: AppRole;
       }>;
     } | null;
     const rawRole = membershipRecord?.roles;
