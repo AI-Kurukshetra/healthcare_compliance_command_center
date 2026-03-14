@@ -1,5 +1,7 @@
 "use server";
 
+import type { PostgrestError } from "@supabase/supabase-js";
+
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -26,13 +28,40 @@ function redirectWithComplianceFlash(kind: "error" | "message", message: string)
   redirect("/compliance");
 }
 
+function isMissingRelationError(error: PostgrestError | null) {
+  if (!error) {
+    return false;
+  }
+
+  return (
+    error.code === "42P01" ||
+    error.message.toLowerCase().includes("does not exist") ||
+    error.message.toLowerCase().includes("could not find the table")
+  );
+}
+
+function getAssessmentTemplateErrorMessage(templateSlug: string, error: PostgrestError | null) {
+  if (isMissingRelationError(error)) {
+    return "Compliance assessments are not configured in the database yet. Apply the latest Supabase migrations and try again.";
+  }
+
+  if (error?.message) {
+    return `Unable to load assessment template "${templateSlug}". ${error.message}`;
+  }
+
+  return `Unable to load assessment template "${templateSlug}".`;
+}
+
 export async function submitComplianceAssessmentAction(formData: FormData) {
   const access = await requirePermission("manage_assessments");
   const templateSlug = getFieldValue(formData, "templateSlug");
   const templateResult = await getOrCreateAssessmentTemplateBySlug(access.organizationId, templateSlug);
 
   if (templateResult.error || !templateResult.data) {
-    redirectWithComplianceFlash("error", "Unable to load the requested assessment template.");
+    redirectWithComplianceFlash(
+      "error",
+      getAssessmentTemplateErrorMessage(templateSlug, templateResult.error)
+    );
   }
 
   if (!templateResult.data.id) {

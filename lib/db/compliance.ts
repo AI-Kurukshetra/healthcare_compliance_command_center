@@ -11,7 +11,7 @@ import {
   type AssessmentQuestion,
   type AssessmentRecommendation
 } from "@/lib/compliance";
-import { getDatabaseClient } from "@/lib/db";
+import { getDatabaseClient, getPrivilegedDatabaseClient } from "@/lib/db";
 import { listTrainingWorkspace } from "@/lib/db/training";
 import type { AssessmentAnswerValue } from "@/types/compliance";
 import type { Database } from "@/types/database";
@@ -554,7 +554,7 @@ export async function getOrCreateAssessmentTemplateBySlug(
   organizationId: string,
   slug: string
 ): Promise<{ data: ComplianceAssessmentTemplate | null; error: PostgrestError | null }> {
-  const supabase = getDatabaseClient();
+  const supabase = getPrivilegedDatabaseClient();
   const { data, error } = await supabase
     .from("assessment_templates")
     .select("id, slug, title, framework, version, description, questions, max_score, is_active, organization_id, created_at, updated_at")
@@ -691,7 +691,7 @@ export async function createAssessmentRecord(
   organizationId: string,
   score: number
 ): Promise<{ data: AssessmentRow | null; error: PostgrestError | null }> {
-  const supabase = getDatabaseClient();
+  const supabase = getPrivilegedDatabaseClient();
   const { data, error } = await supabase
     .from("assessments")
     .insert({
@@ -715,7 +715,7 @@ export async function createAssessmentResponse(input: {
   userId: string;
   answers: Array<{ questionId: string; answer: AssessmentAnswerValue }>;
 }): Promise<{ data: AssessmentResponseRow | null; error: PostgrestError | null }> {
-  const supabase = getDatabaseClient();
+  const supabase = getPrivilegedDatabaseClient();
   const payload: AssessmentResponseInsert = {
     organization_id: input.organizationId,
     template_id: input.templateId,
@@ -744,7 +744,7 @@ export async function createAssessmentResult(input: {
   assessmentId: string | null;
   evaluation: ReturnType<typeof evaluateAssessment>;
 }): Promise<{ data: AssessmentResultRow | null; error: PostgrestError | null }> {
-  const supabase = getDatabaseClient();
+  const supabase = getPrivilegedDatabaseClient();
   const payload: AssessmentResultInsert = {
     organization_id: input.organizationId,
     template_id: input.templateId,

@@ -120,6 +120,16 @@ export async function ensureAuthAccountRecords(user: User) {
       "Failed to ensure RBAC catalog"
     );
 
+    assertMutationSucceeded(
+      await upsertOrganizationMembershipRecord({
+        organizationId: existingMembership.data.organization_id,
+        userId: user.id,
+        role: existingMembership.data.role,
+        invitedBy: existingMembership.data.invited_by ?? user.id
+      }),
+      "Failed to repair organization membership"
+    );
+
     if (user.email) {
       const existingUser = await getUserRecordByOrganizationAndId(
         existingMembership.data.organization_id,
