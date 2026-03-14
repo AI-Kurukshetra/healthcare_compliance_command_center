@@ -1,4 +1,13 @@
-import type { AppRole, AssessmentStatus, IncidentStatus, RiskSeverity } from "@/types/compliance";
+import type {
+  AppRole,
+  AssessmentResponseStatus,
+  AssessmentStatus,
+  IncidentStatus,
+  PolicyStatus,
+  RiskStatusKey,
+  RiskSeverity,
+  TrainingProgressStatus
+} from "@/types/compliance";
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -173,6 +182,105 @@ export type Database = {
         };
         Relationships: [];
       };
+      assessment_templates: {
+        Row: BaseRow & {
+          slug: string;
+          title: string;
+          framework: string;
+          version: number;
+          description: string;
+          questions: Json;
+          max_score: number;
+          is_active: boolean;
+        };
+        Insert: BaseInsert & {
+          slug: string;
+          title: string;
+          framework?: string;
+          version?: number;
+          description: string;
+          questions?: Json;
+          max_score: number;
+          is_active?: boolean;
+        };
+        Update: BaseUpdate & {
+          slug?: string;
+          title?: string;
+          framework?: string;
+          version?: number;
+          description?: string;
+          questions?: Json;
+          max_score?: number;
+          is_active?: boolean;
+        };
+        Relationships: [];
+      };
+      assessment_responses: {
+        Row: BaseRow & {
+          template_id: string;
+          user_id: string;
+          status: AssessmentResponseStatus;
+          submitted_at: string;
+          answers: Json;
+        };
+        Insert: BaseInsert & {
+          template_id: string;
+          user_id: string;
+          status: AssessmentResponseStatus;
+          submitted_at?: string;
+          answers?: Json;
+        };
+        Update: BaseUpdate & {
+          template_id?: string;
+          user_id?: string;
+          status?: AssessmentResponseStatus;
+          submitted_at?: string;
+          answers?: Json;
+        };
+        Relationships: [];
+      };
+      assessment_results: {
+        Row: BaseRow & {
+          template_id: string;
+          response_id: string;
+          assessment_id: string | null;
+          score: number;
+          compliant_count: number;
+          partial_count: number;
+          non_compliant_count: number;
+          summary: string;
+          gap_analysis: Json;
+          recommendations: Json;
+          domain_scores: Json;
+        };
+        Insert: BaseInsert & {
+          template_id: string;
+          response_id: string;
+          assessment_id?: string | null;
+          score: number;
+          compliant_count?: number;
+          partial_count?: number;
+          non_compliant_count?: number;
+          summary: string;
+          gap_analysis?: Json;
+          recommendations?: Json;
+          domain_scores?: Json;
+        };
+        Update: BaseUpdate & {
+          template_id?: string;
+          response_id?: string;
+          assessment_id?: string | null;
+          score?: number;
+          compliant_count?: number;
+          partial_count?: number;
+          non_compliant_count?: number;
+          summary?: string;
+          gap_analysis?: Json;
+          recommendations?: Json;
+          domain_scores?: Json;
+        };
+        Relationships: [];
+      };
       risks: {
         Row: BaseRow & {
           severity: RiskSeverity;
@@ -203,6 +311,120 @@ export type Database = {
           severity?: RiskSeverity;
           status?: IncidentStatus;
           description?: string;
+        };
+        Relationships: [];
+      };
+      risk_levels: {
+        Row: {
+          id: string;
+          organization_id: string | null;
+          key: RiskSeverity;
+          label: string;
+          description: string;
+          weight: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id?: string | null;
+          key: RiskSeverity;
+          label: string;
+          description: string;
+          weight: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string | null;
+          key?: RiskSeverity;
+          label?: string;
+          description?: string;
+          weight?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      risk_status: {
+        Row: {
+          id: string;
+          organization_id: string | null;
+          key: RiskStatusKey;
+          label: string;
+          description: string;
+          sort_order: number;
+          is_threat: boolean;
+          is_closed: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id?: string | null;
+          key: RiskStatusKey;
+          label: string;
+          description: string;
+          sort_order: number;
+          is_threat?: boolean;
+          is_closed?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string | null;
+          key?: RiskStatusKey;
+          label?: string;
+          description?: string;
+          sort_order?: number;
+          is_threat?: boolean;
+          is_closed?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      risk_items: {
+        Row: BaseRow & {
+          title: string;
+          description: string;
+          level_id: string;
+          status_id: string;
+          owner_name: string | null;
+          source: string;
+          identified_on: string;
+          target_resolution_date: string | null;
+          last_reviewed_at: string | null;
+          created_by: string | null;
+          updated_by: string | null;
+        };
+        Insert: BaseInsert & {
+          title: string;
+          description: string;
+          level_id: string;
+          status_id: string;
+          owner_name?: string | null;
+          source?: string;
+          identified_on?: string;
+          target_resolution_date?: string | null;
+          last_reviewed_at?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+        };
+        Update: BaseUpdate & {
+          title?: string;
+          description?: string;
+          level_id?: string;
+          status_id?: string;
+          owner_name?: string | null;
+          source?: string;
+          identified_on?: string;
+          target_resolution_date?: string | null;
+          last_reviewed_at?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
         };
         Relationships: [];
       };
@@ -272,6 +494,162 @@ export type Database = {
         Update: BaseUpdate & {
           title?: string;
           mandatory?: boolean;
+        };
+        Relationships: [];
+      };
+      training_assignments: {
+        Row: BaseRow & {
+          course_id: string;
+          user_id: string;
+          assigned_by_user_id: string | null;
+          due_at: string;
+          reminder_sent_at: string | null;
+          reminder_count: number;
+        };
+        Insert: BaseInsert & {
+          course_id: string;
+          user_id: string;
+          assigned_by_user_id?: string | null;
+          due_at: string;
+          reminder_sent_at?: string | null;
+          reminder_count?: number;
+        };
+        Update: BaseUpdate & {
+          course_id?: string;
+          user_id?: string;
+          assigned_by_user_id?: string | null;
+          due_at?: string;
+          reminder_sent_at?: string | null;
+          reminder_count?: number;
+        };
+        Relationships: [];
+      };
+      training_progress: {
+        Row: BaseRow & {
+          assignment_id: string;
+          course_id: string;
+          user_id: string;
+          status: TrainingProgressStatus;
+          progress_percentage: number;
+          started_at: string | null;
+          completed_at: string | null;
+          updated_by_user_id: string | null;
+        };
+        Insert: BaseInsert & {
+          assignment_id: string;
+          course_id: string;
+          user_id: string;
+          status?: TrainingProgressStatus;
+          progress_percentage?: number;
+          started_at?: string | null;
+          completed_at?: string | null;
+          updated_by_user_id?: string | null;
+        };
+        Update: BaseUpdate & {
+          assignment_id?: string;
+          course_id?: string;
+          user_id?: string;
+          status?: TrainingProgressStatus;
+          progress_percentage?: number;
+          started_at?: string | null;
+          completed_at?: string | null;
+          updated_by_user_id?: string | null;
+        };
+        Relationships: [];
+      };
+      policy_templates: {
+        Row: {
+          id: string;
+          organization_id: string | null;
+          slug: string;
+          title: string;
+          category: string;
+          framework: string;
+          description: string;
+          summary: string;
+          content: string;
+          recommended_review_days: number;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id?: string | null;
+          slug: string;
+          title: string;
+          category: string;
+          framework: string;
+          description: string;
+          summary: string;
+          content: string;
+          recommended_review_days?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string | null;
+          slug?: string;
+          title?: string;
+          category?: string;
+          framework?: string;
+          description?: string;
+          summary?: string;
+          content?: string;
+          recommended_review_days?: number;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      organization_policies: {
+        Row: BaseRow & {
+          template_id: string | null;
+          name: string;
+          slug: string;
+          status: PolicyStatus;
+          owner_name: string;
+          approver_name: string | null;
+          review_frequency_days: number;
+          effective_date: string | null;
+          version: string;
+          summary: string;
+          content: string;
+          created_by: string | null;
+          updated_by: string | null;
+        };
+        Insert: BaseInsert & {
+          template_id?: string | null;
+          name: string;
+          slug: string;
+          status: PolicyStatus;
+          owner_name: string;
+          approver_name?: string | null;
+          review_frequency_days?: number;
+          effective_date?: string | null;
+          version?: string;
+          summary: string;
+          content: string;
+          created_by?: string | null;
+          updated_by?: string | null;
+        };
+        Update: BaseUpdate & {
+          template_id?: string | null;
+          name?: string;
+          slug?: string;
+          status?: PolicyStatus;
+          owner_name?: string;
+          approver_name?: string | null;
+          review_frequency_days?: number;
+          effective_date?: string | null;
+          version?: string;
+          summary?: string;
+          content?: string;
+          created_by?: string | null;
+          updated_by?: string | null;
         };
         Relationships: [];
       };

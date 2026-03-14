@@ -9,6 +9,7 @@ import { ensureAuthAccountRecords, safelyRunAuthSideEffect } from "@/lib/auth/se
 import { createAuditLogEntry } from "@/lib/db/audit-logs";
 import { getDashboardSummary } from "@/lib/db/dashboard";
 import { getOrganizationWorkspaceByUserId } from "@/lib/db/organizations";
+import { getTrainingDashboardSummary } from "@/lib/db/training";
 import { createClient } from "@/lib/supabase/server";
 
 function formatDate(value: string) {
@@ -68,7 +69,16 @@ export default async function DashboardPage() {
     : { data: null, error: workspace.error };
   const canViewIncidents = await currentUserHasPermission("view_incidents");
   const canManageAssessments = await currentUserHasPermission("manage_assessments");
+  const canCompleteTraining = await currentUserHasPermission("complete_training");
   const canViewReports = await currentUserHasPermission("view_reports");
+  const trainingSummary =
+    workspaceData && (canManageAssessments || canCompleteTraining)
+      ? await getTrainingDashboardSummary(
+          workspaceData.organization.id,
+          user.id,
+          canManageAssessments
+        )
+      : { data: null, error: null };
 
   return (
     <main className="relative overflow-hidden">
@@ -101,11 +111,11 @@ export default async function DashboardPage() {
             ) : null}
           </div>
 
-          {workspace.error || dashboard.error || bootstrapError ? (
+          {workspace.error || dashboard.error || trainingSummary.error || bootstrapError ? (
             <div className="mt-8 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
               {bootstrapError
                 ? `Unable to reconcile this account with an organization workspace. ${bootstrapError}`
-                : "Unable to load dashboard data. Verify the organization, profile, and RBAC migrations before opening protected compliance modules."}
+                : "Unable to load dashboard data. Verify the organization, profile, RBAC, and training migrations before opening protected compliance modules."}
             </div>
           ) : null}
 
@@ -210,6 +220,87 @@ export default async function DashboardPage() {
                 </section>
 
                 <div className="grid gap-4">
+                  {trainingSummary.data ? (
+                    <section className="rounded-[28px] border border-success/20 bg-success/5 p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ocean">
+                            Training Readiness
+                          </p>
+                          <p className="mt-2 text-sm text-ink/65">
+                            {trainingSummary.data.scope === "organization"
+                              ? "Organization-wide assignment completion and due-date pressure."
+                              : "Your assigned training completion and upcoming due dates."}
+                          </p>
+                        </div>
+                        <Link
+                          href="/training"
+                          className="text-sm font-semibold text-ocean transition hover:text-ocean/80"
+                        >
+                          Open training
+                        </Link>
+                      </div>
+                      <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                        <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean">
+                            Completion
+                          </p>
+                          <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-ink">
+                            {formatScore(trainingSummary.data.completionRate)}
+                          </p>
+                        </div>
+                        <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean">
+                            Overdue Alerts
+                          </p>
+                          <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-ink">
+                            {trainingSummary.data.overdueAssignments}
+                          </p>
+                        </div>
+                        <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean">
+                            Assigned
+                          </p>
+                          <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-ink">
+                            {trainingSummary.data.totalAssignments}
+                          </p>
+                        </div>
+                      </div>
+                      {trainingSummary.data.alerts.length > 0 ? (
+                        <div className="mt-5 space-y-3">
+                          {trainingSummary.data.alerts.map((assignment) => (
+                            <article
+                              key={assignment.assignmentId}
+                              className="rounded-3xl border border-white/70 bg-white/85 p-4"
+                            >
+                              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em]">
+                                <span className="rounded-full bg-white px-3 py-1 text-ocean">
+                                  {assignment.courseTitle}
+                                </span>
+                                <span
+                                  className={`rounded-full px-3 py-1 ${
+                                    assignment.isOverdue
+                                      ? "bg-rose-100 text-rose-700"
+                                      : "bg-signal/10 text-signal"
+                                  }`}
+                                >
+                                  {assignment.isOverdue ? "Overdue" : "Upcoming"}
+                                </span>
+                              </div>
+                              <p className="mt-3 text-sm text-ink/75">
+                                {assignment.assignedUserName} due {formatDate(assignment.dueAt)}
+                              </p>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-5 rounded-3xl border border-dashed border-success/20 bg-white/70 p-4 text-sm text-ink/65">
+                          No overdue or upcoming training alerts right now.
+                        </div>
+                      )}
+                    </section>
+                  ) : null}
+
                   <section className="rounded-[28px] border border-ocean/15 bg-ocean/5 p-6">
                     <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ocean">
                       Operations Snapshot
@@ -265,12 +356,36 @@ export default async function DashboardPage() {
                       </RoleGuard>
                       <RoleGuard permission="view_reports">
                         <Link
+                          href="/risks"
+                          className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-semibold text-ink transition hover:border-ink/20 hover:bg-ink/5"
+                        >
+                          Risk dashboard
+                        </Link>
+                      </RoleGuard>
+                      <RoleGuard permission="view_reports">
+                        <Link
+                          href="/documents"
+                          className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-semibold text-ink transition hover:border-ink/20 hover:bg-ink/5"
+                        >
+                          Open policy library
+                        </Link>
+                      </RoleGuard>
+                      <RoleGuard permission="view_reports">
+                        <Link
                           href="/reports"
                           className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-semibold text-ink transition hover:border-ink/20 hover:bg-ink/5"
                         >
                           Open reports
                         </Link>
                       </RoleGuard>
+                      {(canManageAssessments || canCompleteTraining) ? (
+                        <Link
+                          href="/training"
+                          className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-semibold text-ink transition hover:border-ink/20 hover:bg-ink/5"
+                        >
+                          Training workspace
+                        </Link>
+                      ) : null}
                       <RoleGuard permission="manage_users">
                         <Link
                           href="/users"
@@ -290,6 +405,9 @@ export default async function DashboardPage() {
                 </span>
                 <span className="rounded-full bg-white/80 px-4 py-2">
                   Assessment management: {canManageAssessments ? "Enabled" : "Restricted"}
+                </span>
+                <span className="rounded-full bg-white/80 px-4 py-2">
+                  Training completion: {canCompleteTraining ? "Enabled" : "Restricted"}
                 </span>
                 <span className="rounded-full bg-white/80 px-4 py-2">
                   Report access: {canViewReports ? "Enabled" : "Restricted"}
