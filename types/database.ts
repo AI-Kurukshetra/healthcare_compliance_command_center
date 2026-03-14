@@ -26,32 +26,134 @@ type BaseUpdate = {
 export type Database = {
   public: {
     Tables: {
+      roles: {
+        Row: BaseRow & {
+          name: string;
+          description: string;
+        };
+        Insert: BaseInsert & {
+          name: string;
+          description: string;
+        };
+        Update: BaseUpdate & {
+          name?: string;
+          description?: string;
+        };
+        Relationships: [];
+      };
+      permissions: {
+        Row: BaseRow & {
+          name: string;
+          description: string;
+        };
+        Insert: BaseInsert & {
+          name: string;
+          description: string;
+        };
+        Update: BaseUpdate & {
+          name?: string;
+          description?: string;
+        };
+        Relationships: [];
+      };
+      role_permissions: {
+        Row: BaseRow & {
+          role_id: string;
+          permission_id: string;
+        };
+        Insert: BaseInsert & {
+          role_id: string;
+          permission_id: string;
+        };
+        Update: BaseUpdate & {
+          role_id?: string;
+          permission_id?: string;
+        };
+        Relationships: [];
+      };
+      user_roles: {
+        Row: BaseRow & {
+          user_id: string;
+          role_id: string;
+        };
+        Insert: BaseInsert & {
+          user_id: string;
+          role_id: string;
+        };
+        Update: BaseUpdate & {
+          user_id?: string;
+          role_id?: string;
+        };
+        Relationships: [];
+      };
       organizations: {
         Row: BaseRow & {
           name: string;
           plan: string | null;
+          created_by: string | null;
         };
         Insert: BaseInsert & {
           name: string;
           plan?: string | null;
+          created_by?: string | null;
         };
         Update: BaseUpdate & {
           name?: string;
           plan?: string | null;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
+      organization_members: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          role: AppRole;
+          role_id: string;
+          invited_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id: string;
+          role: AppRole;
+          role_id?: string;
+          invited_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          user_id?: string;
+          role?: AppRole;
+          role_id?: string;
+          invited_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
       users: {
         Row: BaseRow & {
           email: string;
+          first_name: string | null;
+          last_name: string | null;
           role: AppRole;
         };
         Insert: BaseInsert & {
           email: string;
+          first_name?: string | null;
+          last_name?: string | null;
           role: AppRole;
         };
         Update: BaseUpdate & {
           email?: string;
+          first_name?: string | null;
+          last_name?: string | null;
           role?: AppRole;
         };
         Relationships: [];

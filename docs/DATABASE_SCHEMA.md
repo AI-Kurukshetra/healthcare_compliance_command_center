@@ -13,12 +13,57 @@ organizations
 - id
 - name
 - plan
+- created_by
 - created_at
+
+organization_members
+- id
+- organization_id
+- user_id
+- role
+- role_id
+- invited_by
+- created_at
+- updated_at
+
+roles
+- id
+- organization_id
+- name
+- description
+- created_at
+- updated_at
+
+permissions
+- id
+- organization_id
+- name
+- description
+- created_at
+- updated_at
+
+role_permissions
+- id
+- organization_id
+- role_id
+- permission_id
+- created_at
+- updated_at
+
+user_roles
+- id
+- organization_id
+- user_id
+- role_id
+- created_at
+- updated_at
 
 users
 - id
 - organization_id
 - email
+- first_name
+- last_name
 - role
 
 assessments

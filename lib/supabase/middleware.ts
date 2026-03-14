@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { getRouteRequiredPermission, roleHasPermission } from "@/lib/auth/rbac-config";
 import { getAuthRedirectTarget, setAuthRedirectTarget } from "@/lib/auth/state";
 import { isAuthRoute, isProtectedRoute } from "@/lib/auth/routes";
 import { serverEnv } from "@/lib/env/server";
@@ -70,6 +71,38 @@ export async function updateSession(request: NextRequest) {
     applyResponseCookies(response, redirectResponse);
 
     return redirectResponse;
+  }
+
+  const requiredPermission = getRouteRequiredPermission(pathname);
+
+  if (user && requiredPermission) {
+    const { data } = await supabase
+      .from("organization_members")
+      .select("role, roles!inner(name)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const membershipRecord = data as {
+      role?: Database["public"]["Tables"]["organization_members"]["Row"]["role"];
+      roles?: { name?: Database["public"]["Tables"]["roles"]["Row"]["name"] } | Array<{
+        name?: Database["public"]["Tables"]["roles"]["Row"]["name"];
+      }>;
+    } | null;
+    const rawRole = membershipRecord?.roles;
+    const resolvedRole = Array.isArray(rawRole) ? rawRole[0]?.name : rawRole?.name;
+    const membershipRole = resolvedRole ?? membershipRecord?.role;
+
+    if (!membershipRole || !roleHasPermission(membershipRole, requiredPermission)) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = "/unauthorized";
+      redirectUrl.search = "";
+
+      const redirectResponse = NextResponse.redirect(redirectUrl);
+      applyResponseCookies(response, redirectResponse);
+
+      return redirectResponse;
+    }
   }
 
   return response;

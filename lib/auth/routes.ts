@@ -1,5 +1,8 @@
 const protectedRoutePrefixes = [
   "/dashboard",
+  "/profile",
+  "/admin",
+  "/users",
   "/compliance",
   "/incidents",
   "/reports",
