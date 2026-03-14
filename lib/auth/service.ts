@@ -9,7 +9,7 @@ import {
   getOrganizationMembershipByUserId,
   upsertOrganizationMembershipRecord
 } from "@/lib/db/organization-members";
-import { ensureOrganizationRbacCatalog } from "@/lib/db/rbac";
+import { ensureOrganizationRbacCatalog, getRoleRecordByName } from "@/lib/db/rbac";
 import { upsertOrganizationRecord } from "@/lib/db/organizations";
 import { getUserRecordById, getUserRecordByOrganizationAndId, upsertUserRecord } from "@/lib/db/users";
 import { serverEnv } from "@/lib/env/server";
@@ -115,21 +115,6 @@ export async function ensureAuthAccountRecords(user: User) {
   const existingMembership = await getOrganizationMembershipByUserId(user.id);
 
   if (!existingMembership.error && existingMembership.data) {
-    assertMutationSucceeded(
-      await ensureOrganizationRbacCatalog(existingMembership.data.organization_id),
-      "Failed to ensure RBAC catalog"
-    );
-
-    assertMutationSucceeded(
-      await upsertOrganizationMembershipRecord({
-        organizationId: existingMembership.data.organization_id,
-        userId: user.id,
-        role: existingMembership.data.role,
-        invitedBy: existingMembership.data.invited_by ?? user.id
-      }),
-      "Failed to repair organization membership"
-    );
-
     if (user.email) {
       const existingUser = await getUserRecordByOrganizationAndId(
         existingMembership.data.organization_id,
@@ -172,10 +157,18 @@ export async function ensureAuthAccountRecords(user: User) {
   const existingUser = await getUserRecordById(user.id);
 
   if (!existingUser.error && existingUser.data) {
-    assertMutationSucceeded(
-      await ensureOrganizationRbacCatalog(existingUser.data.organization_id),
-      "Failed to ensure RBAC catalog"
-    );
+    const roleRecord = await getRoleRecordByName(existingUser.data.organization_id, existingUser.data.role);
+
+    if (roleRecord.error) {
+      throw new Error(`Failed to resolve role catalog: ${roleRecord.error.message}`);
+    }
+
+    if (!roleRecord.data) {
+      assertMutationSucceeded(
+        await ensureOrganizationRbacCatalog(existingUser.data.organization_id),
+        "Failed to ensure RBAC catalog"
+      );
+    }
 
     assertMutationSucceeded(
       await upsertOrganizationMembershipRecord({
