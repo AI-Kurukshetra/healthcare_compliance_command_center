@@ -65,6 +65,12 @@ function sortAssignments(assignments: TrainingAssignmentView[]) {
   );
 }
 
+function getMetricValueClasses(value: string) {
+  return /^\d+%?$/.test(value)
+    ? "mt-4 font-[family-name:var(--font-display)] text-4xl font-semibold text-ink"
+    : "mt-4 text-lg font-semibold text-ink/65";
+}
+
 type SummaryCardProps = {
   title: string;
   value: string;
@@ -75,9 +81,7 @@ function SummaryCard({ title, value, detail }: SummaryCardProps) {
   return (
     <article className="rounded-[28px] border border-ink/10 bg-white/80 p-5 shadow-panel">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ocean">{title}</p>
-      <p className="mt-4 font-[family-name:var(--font-display)] text-4xl font-semibold text-ink">
-        {value}
-      </p>
+      <p className={getMetricValueClasses(value)}>{value}</p>
       <p className="mt-3 text-sm leading-6 text-ink/70">{detail}</p>
     </article>
   );

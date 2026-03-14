@@ -28,6 +28,18 @@ function formatIncidentStatus(status: string) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function getMetricValueClasses(value: string) {
+  return /^\d+%?$/.test(value)
+    ? "mt-4 font-[family-name:var(--font-display)] text-5xl font-semibold text-ink"
+    : "mt-4 text-lg font-semibold text-ink/65";
+}
+
+function getCompactMetricValueClasses(value: string) {
+  return /^\d+%?$/.test(value)
+    ? "mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-ink"
+    : "mt-3 text-base font-semibold text-ink/65";
+}
+
 export default async function DashboardPage() {
   const supabase = createClient();
   const {
@@ -157,7 +169,7 @@ export default async function DashboardPage() {
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ocean">
                     Compliance Score
                   </p>
-                  <p className="mt-4 font-[family-name:var(--font-display)] text-5xl font-semibold text-ink">
+                  <p className={getMetricValueClasses(formatScore(dashboard.data.assessments.averageScore))}>
                     {formatScore(dashboard.data.assessments.averageScore)}
                   </p>
                   <p className="mt-3 text-sm leading-6 text-ink/70">
@@ -222,12 +234,12 @@ export default async function DashboardPage() {
                 <div className="grid gap-4">
                   {trainingSummary.data ? (
                     <section className="rounded-[28px] border border-success/20 bg-success/5 p-6">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
                           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-ocean">
                             Training Readiness
                           </p>
-                          <p className="mt-2 text-sm text-ink/65">
+                          <p className="mt-2 max-w-sm text-sm leading-6 text-ink/65">
                             {trainingSummary.data.scope === "organization"
                               ? "Organization-wide assignment completion and due-date pressure."
                               : "Your assigned training completion and upcoming due dates."}
@@ -235,33 +247,33 @@ export default async function DashboardPage() {
                         </div>
                         <Link
                           href="/training"
-                          className="text-sm font-semibold text-ocean transition hover:text-ocean/80"
+                          className="inline-flex min-h-[40px] w-fit shrink-0 items-center justify-center rounded-2xl border border-success/20 bg-white/85 px-4 py-2 text-sm font-semibold text-ink transition hover:border-success/35 hover:bg-white"
                         >
-                          Open training
+                          Open Training
                         </Link>
                       </div>
-                      <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                      <div className="mt-5 grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
                         <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] leading-5 text-ocean">
                             Completion
                           </p>
-                          <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-ink">
+                          <p className={getCompactMetricValueClasses(formatScore(trainingSummary.data.completionRate))}>
                             {formatScore(trainingSummary.data.completionRate)}
                           </p>
                         </div>
                         <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] leading-5 text-ocean">
                             Overdue Alerts
                           </p>
-                          <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-ink">
+                          <p className={getCompactMetricValueClasses(String(trainingSummary.data.overdueAssignments))}>
                             {trainingSummary.data.overdueAssignments}
                           </p>
                         </div>
                         <div className="rounded-3xl border border-white/70 bg-white/80 p-4">
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ocean">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] leading-5 text-ocean">
                             Assigned
                           </p>
-                          <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-ink">
+                          <p className={getCompactMetricValueClasses(String(trainingSummary.data.totalAssignments))}>
                             {trainingSummary.data.totalAssignments}
                           </p>
                         </div>

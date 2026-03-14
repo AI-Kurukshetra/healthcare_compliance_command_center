@@ -72,6 +72,12 @@ function getBarWidth(value: number, total: number) {
   return Math.max(6, Math.round((value / total) * 100));
 }
 
+function getMetricValueClasses(value: string) {
+  return /^\d+%?$/.test(value)
+    ? "mt-4 font-[family-name:var(--font-display)] text-4xl font-semibold text-ink"
+    : "mt-4 text-lg font-semibold text-ink/65";
+}
+
 type MetricCardProps = {
   label: string;
   value: string;
@@ -82,9 +88,7 @@ function MetricCard({ label, value, detail }: MetricCardProps) {
   return (
     <article className="rounded-[28px] border border-white/70 bg-white/80 p-5 shadow-panel backdrop-blur">
       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-ocean">{label}</p>
-      <p className="mt-4 font-[family-name:var(--font-display)] text-4xl font-semibold text-ink">
-        {value}
-      </p>
+      <p className={getMetricValueClasses(value)}>{value}</p>
       <p className="mt-3 text-sm leading-6 text-ink/70">{detail}</p>
     </article>
   );
