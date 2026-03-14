@@ -11,6 +11,7 @@ const config: Config = {
       colors: {
         ink: "#102132",
         mist: "#edf4fb",
+        alert: "#b33a3a",
         signal: "#d66b2d",
         ocean: "#2a678f",
         tide: "#5fa3c6",

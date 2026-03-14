@@ -10,6 +10,7 @@ import {
   ensureAuthAccountRecords,
   recordLoginEvent,
   recordLogoutEvent,
+  splitFullName,
   safelyRunAuthSideEffect
 } from "@/lib/auth/service";
 import {
@@ -133,6 +134,7 @@ export async function registerAction(formData: FormData) {
   );
 
   const organizationId = randomUUID();
+  const profileName = splitFullName(values.fullName);
   const cookieStore = cookies();
   const redirectTo = getAuthRedirectTarget(cookieStore);
   setAuthRedirectTarget(redirectTo, cookieStore);
@@ -144,9 +146,11 @@ export async function registerAction(formData: FormData) {
       emailRedirectTo: buildAuthCallbackUrl(),
       data: {
         full_name: values.fullName,
+        first_name: profileName.firstName,
+        last_name: profileName.lastName,
         organization_id: organizationId,
         organization_name: values.organizationName,
-        role: "admin"
+        role: "owner"
       }
     }
   });
