@@ -4,10 +4,12 @@ const protectedRoutePrefixes = [
   "/admin",
   "/users",
   "/compliance",
+  "/risks",
   "/incidents",
   "/reports",
   "/vendors",
-  "/documents"
+  "/documents",
+  "/training"
 ] as const;
 
 const authRoutePrefixes = ["/login", "/register"] as const;

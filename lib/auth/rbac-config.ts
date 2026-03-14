@@ -88,7 +88,8 @@ export const ROLE_PERMISSION_MAP: Record<AppRole, PermissionName[]> = {
     "view_incidents",
     "manage_incidents",
     "view_reports",
-    "upload_documents"
+    "upload_documents",
+    "complete_training"
   ],
   staff: ["complete_training", "participate_assessments", "view_assigned_tasks"],
   auditor: ["view_reports", "view_audit_logs"]
@@ -101,6 +102,8 @@ export const ROUTE_PERMISSION_MAP: ReadonlyArray<{
   { pathname: "/admin", permission: "configure_security_settings" },
   { pathname: "/users", permission: "manage_users" },
   { pathname: "/compliance", permission: "view_reports" },
+  { pathname: "/documents", permission: "view_reports" },
+  { pathname: "/risks", permission: "view_reports" },
   { pathname: "/incidents/manage", permission: "manage_incidents" },
   { pathname: "/reports", permission: "view_reports" }
 ];

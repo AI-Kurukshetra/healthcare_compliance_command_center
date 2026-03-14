@@ -2,20 +2,29 @@ import "server-only";
 
 import type { PostgrestError } from "@supabase/supabase-js";
 
+import {
+  evaluateAssessment,
+  getDefaultHipaaAssessmentTemplate,
+  normalizeAssessmentQuestions,
+  type AssessmentDomainScore,
+  type AssessmentGap,
+  type AssessmentQuestion,
+  type AssessmentRecommendation
+} from "@/lib/compliance";
 import { getDatabaseClient } from "@/lib/db";
+import { listTrainingWorkspace } from "@/lib/db/training";
+import type { AssessmentAnswerValue } from "@/types/compliance";
 import type { Database } from "@/types/database";
 
 type AssessmentRow = Database["public"]["Tables"]["assessments"]["Row"];
+type AssessmentTemplateRow = Database["public"]["Tables"]["assessment_templates"]["Row"];
+type AssessmentResponseInsert = Database["public"]["Tables"]["assessment_responses"]["Insert"];
+type AssessmentResponseRow = Database["public"]["Tables"]["assessment_responses"]["Row"];
+type AssessmentResultInsert = Database["public"]["Tables"]["assessment_results"]["Insert"];
+type AssessmentResultRow = Database["public"]["Tables"]["assessment_results"]["Row"];
 type RiskRow = Database["public"]["Tables"]["risks"]["Row"];
 type IncidentRow = Database["public"]["Tables"]["incidents"]["Row"];
 type AuditLogRow = Database["public"]["Tables"]["audit_logs"]["Row"];
-type TrainingCourseRow = Database["public"]["Tables"]["training_courses"]["Row"];
-
-const TRAINING_COMPLETION_ACTIONS = [
-  "training_completed",
-  "course_completed",
-  "training_marked_complete"
-] as const;
 
 const SEVERITY_WEIGHT = {
   critical: 4,
@@ -72,6 +81,44 @@ export type ComplianceDashboardSummary = {
     uniqueCompletions: number;
     expectedCompletions: number;
   };
+};
+
+export type ComplianceAssessmentTemplate = {
+  id: string | null;
+  source: "database" | "builtin";
+  slug: string;
+  title: string;
+  framework: string;
+  version: number;
+  description: string;
+  questions: AssessmentQuestion[];
+  maxScore: number;
+};
+
+export type ComplianceAssessmentResultSummary = {
+  id: string;
+  templateId: string;
+  templateTitle: string;
+  score: number;
+  summary: string;
+  compliantCount: number;
+  partialCount: number;
+  nonCompliantCount: number;
+  gapCount: number;
+  recommendationCount: number;
+  createdAt: string;
+};
+
+export type ComplianceAssessmentResultDetails = ComplianceAssessmentResultSummary & {
+  gaps: AssessmentGap[];
+  recommendations: AssessmentRecommendation[];
+  domainScores: AssessmentDomainScore[];
+};
+
+export type ComplianceAssessmentWorkspace = {
+  activeTemplate: ComplianceAssessmentTemplate;
+  latestResult: ComplianceAssessmentResultDetails | null;
+  recentResults: ComplianceAssessmentResultSummary[];
 };
 
 function isMissingRelationError(error: PostgrestError | null) {
@@ -146,10 +193,146 @@ function calculateAverageScore(assessments: Array<Pick<AssessmentRow, "status" |
   return Math.round(total / scoredCompleted.length);
 }
 
-function getUniqueTrainingCompletionCount(
-  entries: Array<Pick<AuditLogRow, "user_id" | "entity_id">>
+function toAssessmentTemplate(row: AssessmentTemplateRow): ComplianceAssessmentTemplate {
+  const questions = normalizeAssessmentQuestions(row.questions);
+
+  return {
+    id: row.id,
+    source: "database",
+    slug: row.slug,
+    title: row.title,
+    framework: row.framework,
+    version: row.version,
+    description: row.description,
+    questions,
+    maxScore: row.max_score
+  };
+}
+
+function getBuiltinTemplate(): ComplianceAssessmentTemplate {
+  const template = getDefaultHipaaAssessmentTemplate();
+
+  return {
+    id: null,
+    source: "builtin",
+    slug: template.slug,
+    title: template.title,
+    framework: template.framework,
+    version: template.version,
+    description: template.description,
+    questions: template.questions,
+    maxScore: template.maxScore
+  };
+}
+
+function parseAssessmentGaps(value: Database["public"]["Tables"]["assessment_results"]["Row"]["gap_analysis"]) {
+  if (!Array.isArray(value)) {
+    return [] as AssessmentGap[];
+  }
+
+  return value.filter((item): item is AssessmentGap => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+
+    const record = item as Record<string, unknown>;
+
+    return (
+      typeof record.questionId === "string" &&
+      (record.domain === "administrative" ||
+        record.domain === "technical" ||
+        record.domain === "physical") &&
+      typeof record.question === "string" &&
+      (record.answer === "yes" || record.answer === "partial" || record.answer === "no") &&
+      (record.priority === "high" || record.priority === "medium") &&
+      typeof record.impact === "string"
+    );
+  });
+}
+
+function parseAssessmentRecommendations(
+  value: Database["public"]["Tables"]["assessment_results"]["Row"]["recommendations"]
 ) {
-  return new Set(entries.map((entry) => `${entry.user_id ?? "unknown"}:${entry.entity_id}`)).size;
+  if (!Array.isArray(value)) {
+    return [] as AssessmentRecommendation[];
+  }
+
+  return value.filter((item): item is AssessmentRecommendation => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+
+    const record = item as Record<string, unknown>;
+
+    return (
+      typeof record.questionId === "string" &&
+      (record.domain === "administrative" ||
+        record.domain === "technical" ||
+        record.domain === "physical") &&
+      (record.priority === "high" || record.priority === "medium") &&
+      typeof record.title === "string" &&
+      typeof record.action === "string"
+    );
+  });
+}
+
+function parseAssessmentDomainScores(
+  value: Database["public"]["Tables"]["assessment_results"]["Row"]["domain_scores"]
+) {
+  if (!Array.isArray(value)) {
+    return [] as AssessmentDomainScore[];
+  }
+
+  return value.filter((item): item is AssessmentDomainScore => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+
+    const record = item as Record<string, unknown>;
+
+    return (
+      (record.domain === "administrative" ||
+        record.domain === "technical" ||
+        record.domain === "physical") &&
+      typeof record.score === "number" &&
+      typeof record.answered === "number" &&
+      typeof record.possible === "number"
+    );
+  });
+}
+
+function toAssessmentResultSummary(
+  row: AssessmentResultRow,
+  templateTitle: string
+): ComplianceAssessmentResultSummary {
+  const gaps = parseAssessmentGaps(row.gap_analysis);
+  const recommendations = parseAssessmentRecommendations(row.recommendations);
+
+  return {
+    id: row.id,
+    templateId: row.template_id,
+    templateTitle,
+    score: row.score,
+    summary: row.summary,
+    compliantCount: row.compliant_count,
+    partialCount: row.partial_count,
+    nonCompliantCount: row.non_compliant_count,
+    gapCount: gaps.length,
+    recommendationCount: recommendations.length,
+    createdAt: row.created_at
+  };
+}
+
+function toAssessmentResultDetails(
+  row: AssessmentResultRow,
+  templateTitle: string
+): ComplianceAssessmentResultDetails {
+  return {
+    ...toAssessmentResultSummary(row, templateTitle),
+    gaps: parseAssessmentGaps(row.gap_analysis),
+    recommendations: parseAssessmentRecommendations(row.recommendations),
+    domainScores: parseAssessmentDomainScores(row.domain_scores)
+  };
 }
 
 export async function getComplianceDashboardSummary(
@@ -163,11 +346,10 @@ export async function getComplianceDashboardSummary(
     risksResult,
     incidentsResult,
     recentIncidentsResult,
-    trainingCoursesResult,
-    trainingCompletionLogsResult,
     recentActivityResult,
     recentActivityCountResult,
-    membersCountResult
+    membersCountResult,
+    trainingWorkspaceResult
   ] = await Promise.all([
     supabase.from("assessments").select("status, score").eq("organization_id", organizationId),
     supabase
@@ -186,16 +368,6 @@ export async function getComplianceDashboardSummary(
       .order("updated_at", { ascending: false })
       .limit(4),
     supabase
-      .from("training_courses")
-      .select("id, title, mandatory")
-      .eq("organization_id", organizationId),
-    supabase
-      .from("audit_logs")
-      .select("user_id, entity_id")
-      .eq("organization_id", organizationId)
-      .eq("entity", "training_course")
-      .in("action", [...TRAINING_COMPLETION_ACTIONS]),
-    supabase
       .from("audit_logs")
       .select("id, action, entity, entity_id, created_at")
       .eq("organization_id", organizationId)
@@ -209,7 +381,8 @@ export async function getComplianceDashboardSummary(
     supabase
       .from("organization_members")
       .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
+      .eq("organization_id", organizationId),
+    listTrainingWorkspace(organizationId, "", true)
   ]);
 
   const normalizedAssessmentsResult = getOptionalRows<Pick<AssessmentRow, "status" | "score">>(
@@ -224,12 +397,6 @@ export async function getComplianceDashboardSummary(
   const normalizedRecentIncidentsResult = getOptionalRows<
     Pick<IncidentRow, "id" | "severity" | "status" | "description" | "updated_at">
   >(recentIncidentsResult);
-  const normalizedTrainingCoursesResult = getOptionalRows<
-    Pick<TrainingCourseRow, "id" | "title" | "mandatory">
-  >(trainingCoursesResult);
-  const normalizedTrainingCompletionLogsResult = getOptionalRows<
-    Pick<AuditLogRow, "user_id" | "entity_id">
-  >(trainingCompletionLogsResult);
   const normalizedRecentActivityResult = getOptionalRows<
     Pick<AuditLogRow, "id" | "action" | "entity" | "entity_id" | "created_at">
   >(recentActivityResult);
@@ -251,14 +418,6 @@ export async function getComplianceDashboardSummary(
     return { data: null, error: normalizedRecentIncidentsResult.error };
   }
 
-  if (normalizedTrainingCoursesResult.error) {
-    return { data: null, error: normalizedTrainingCoursesResult.error };
-  }
-
-  if (normalizedTrainingCompletionLogsResult.error) {
-    return { data: null, error: normalizedTrainingCompletionLogsResult.error };
-  }
-
   if (normalizedRecentActivityResult.error) {
     return { data: null, error: normalizedRecentActivityResult.error };
   }
@@ -271,13 +430,16 @@ export async function getComplianceDashboardSummary(
     return { data: null, error: membersCountResult.error };
   }
 
+  if (trainingWorkspaceResult.error || !trainingWorkspaceResult.data) {
+    return { data: null, error: trainingWorkspaceResult.error };
+  }
+
   const assessments = normalizedAssessmentsResult.data;
   const risks = normalizedRisksResult.data;
   const incidents = normalizedIncidentsResult.data;
   const recentIncidents = normalizedRecentIncidentsResult.data;
-  const trainingCourses = normalizedTrainingCoursesResult.data;
-  const trainingCompletionLogs = normalizedTrainingCompletionLogsResult.data;
   const recentActivity = normalizedRecentActivityResult.data;
+  const trainingWorkspace = trainingWorkspaceResult.data;
 
   const completedAssessments = assessments.filter((assessment) => assessment.status === "completed").length;
   const inProgressAssessments = assessments.filter(
@@ -294,13 +456,10 @@ export async function getComplianceDashboardSummary(
 
   const criticalRisks = risks.filter((risk) => risk.severity === "critical").length;
   const memberCount = membersCountResult.count ?? 0;
-  const mandatoryCourses = trainingCourses.filter((course) => course.mandatory).length;
-  const uniqueTrainingCompletions = getUniqueTrainingCompletionCount(trainingCompletionLogs);
-  const expectedTrainingCompletions = mandatoryCourses * memberCount;
-  const trainingCompletionRate =
-    expectedTrainingCompletions > 0
-      ? Math.min(100, Math.round((uniqueTrainingCompletions / expectedTrainingCompletions) * 100))
-      : null;
+  const mandatoryCourses = trainingWorkspace.summary.mandatoryCourses;
+  const completedAssignments = trainingWorkspace.summary.completedAssignments;
+  const expectedTrainingCompletions = trainingWorkspace.summary.totalAssignments;
+  const trainingCompletionRate = trainingWorkspace.summary.completionRate;
 
   return {
     data: {
@@ -352,12 +511,266 @@ export async function getComplianceDashboardSummary(
       },
       training: {
         mandatoryCourses,
-        optionalCourses: trainingCourses.length - mandatoryCourses,
+        optionalCourses: trainingWorkspace.courses.length - mandatoryCourses,
         completionRate: trainingCompletionRate,
-        uniqueCompletions: uniqueTrainingCompletions,
+        uniqueCompletions: completedAssignments,
         expectedCompletions: expectedTrainingCompletions
       }
     },
     error: null
   };
+}
+
+export async function listAssessmentTemplates(
+  organizationId: string
+): Promise<{ data: ComplianceAssessmentTemplate[]; error: PostgrestError | null }> {
+  const supabase = getDatabaseClient();
+  const { data, error } = await supabase
+    .from("assessment_templates")
+    .select("id, slug, title, framework, version, description, questions, max_score, is_active, organization_id, created_at, updated_at")
+    .eq("organization_id", organizationId)
+    .eq("is_active", true)
+    .order("version", { ascending: false });
+
+  if (isMissingRelationError(error)) {
+    return { data: [getBuiltinTemplate()], error: null };
+  }
+
+  if (error) {
+    return { data: [], error };
+  }
+
+  if (!data || data.length === 0) {
+    return { data: [getBuiltinTemplate()], error: null };
+  }
+
+  return {
+    data: (data as AssessmentTemplateRow[]).map(toAssessmentTemplate),
+    error: null
+  };
+}
+
+export async function getOrCreateAssessmentTemplateBySlug(
+  organizationId: string,
+  slug: string
+): Promise<{ data: ComplianceAssessmentTemplate | null; error: PostgrestError | null }> {
+  const supabase = getDatabaseClient();
+  const { data, error } = await supabase
+    .from("assessment_templates")
+    .select("id, slug, title, framework, version, description, questions, max_score, is_active, organization_id, created_at, updated_at")
+    .eq("organization_id", organizationId)
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error && !isMissingRelationError(error)) {
+    return { data: null, error };
+  }
+
+  if (data) {
+    return {
+      data: toAssessmentTemplate(data as AssessmentTemplateRow),
+      error: null
+    };
+  }
+
+  const fallback = getDefaultHipaaAssessmentTemplate();
+
+  if (slug !== fallback.slug) {
+    return { data: null, error: null };
+  }
+
+  const insertPayload: Database["public"]["Tables"]["assessment_templates"]["Insert"] = {
+    organization_id: organizationId,
+    slug: fallback.slug,
+    title: fallback.title,
+    framework: fallback.framework,
+    version: fallback.version,
+    description: fallback.description,
+    questions: fallback.questions as unknown as Database["public"]["Tables"]["assessment_templates"]["Insert"]["questions"],
+    max_score: fallback.maxScore,
+    is_active: true
+  };
+  const insertResult = await supabase
+    .from("assessment_templates")
+    .insert(insertPayload as never)
+    .select("id, slug, title, framework, version, description, questions, max_score, is_active, organization_id, created_at, updated_at")
+    .single();
+
+  if (insertResult.error) {
+    const retry = await supabase
+      .from("assessment_templates")
+      .select("id, slug, title, framework, version, description, questions, max_score, is_active, organization_id, created_at, updated_at")
+      .eq("organization_id", organizationId)
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (retry.error || !retry.data) {
+      return { data: null, error: insertResult.error };
+    }
+
+    return {
+      data: toAssessmentTemplate(retry.data as AssessmentTemplateRow),
+      error: null
+    };
+  }
+
+  return {
+    data: toAssessmentTemplate(insertResult.data as AssessmentTemplateRow),
+    error: null
+  };
+}
+
+export async function getComplianceAssessmentWorkspace(
+  organizationId: string
+): Promise<{ data: ComplianceAssessmentWorkspace | null; error: PostgrestError | null }> {
+  const [templatesResult, resultsResult] = await Promise.all([
+    listAssessmentTemplates(organizationId),
+    getDatabaseClient()
+      .from("assessment_results")
+      .select(
+        "id, template_id, response_id, assessment_id, score, compliant_count, partial_count, non_compliant_count, summary, gap_analysis, recommendations, domain_scores, organization_id, created_at, updated_at"
+      )
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false })
+      .limit(5)
+  ]);
+
+  if (templatesResult.error) {
+    return { data: null, error: templatesResult.error };
+  }
+
+  if (isMissingRelationError(resultsResult.error)) {
+    return {
+      data: {
+        activeTemplate: templatesResult.data[0] ?? getBuiltinTemplate(),
+        latestResult: null,
+        recentResults: []
+      },
+      error: null
+    };
+  }
+
+  if (resultsResult.error) {
+    return { data: null, error: resultsResult.error };
+  }
+
+  const templatesById = new Map(
+    templatesResult.data
+      .filter((template): template is ComplianceAssessmentTemplate & { id: string } => Boolean(template.id))
+      .map((template) => [template.id, template.title])
+  );
+
+  const rows = (resultsResult.data ?? []) as AssessmentResultRow[];
+  const recentResults = rows.map((row) =>
+    toAssessmentResultSummary(row, templatesById.get(row.template_id) ?? "HIPAA Assessment")
+  );
+
+  return {
+    data: {
+      activeTemplate: templatesResult.data[0] ?? getBuiltinTemplate(),
+      latestResult:
+        rows[0] === undefined
+          ? null
+          : toAssessmentResultDetails(
+              rows[0],
+              templatesById.get(rows[0].template_id) ?? "HIPAA Assessment"
+            ),
+      recentResults
+    },
+    error: null
+  };
+}
+
+export async function createAssessmentRecord(
+  organizationId: string,
+  score: number
+): Promise<{ data: AssessmentRow | null; error: PostgrestError | null }> {
+  const supabase = getDatabaseClient();
+  const { data, error } = await supabase
+    .from("assessments")
+    .insert({
+      organization_id: organizationId,
+      status: "completed",
+      score
+    } as never)
+    .select("id, organization_id, status, score, created_at, updated_at")
+    .single();
+
+  if (error) {
+    return { data: null, error };
+  }
+
+  return { data: data as AssessmentRow, error: null };
+}
+
+export async function createAssessmentResponse(input: {
+  organizationId: string;
+  templateId: string;
+  userId: string;
+  answers: Array<{ questionId: string; answer: AssessmentAnswerValue }>;
+}): Promise<{ data: AssessmentResponseRow | null; error: PostgrestError | null }> {
+  const supabase = getDatabaseClient();
+  const payload: AssessmentResponseInsert = {
+    organization_id: input.organizationId,
+    template_id: input.templateId,
+    user_id: input.userId,
+    status: "completed",
+    submitted_at: new Date().toISOString(),
+    answers: input.answers as unknown as AssessmentResponseInsert["answers"]
+  };
+  const { data, error } = await supabase
+    .from("assessment_responses")
+    .insert(payload as never)
+    .select("id, organization_id, template_id, user_id, status, submitted_at, answers, created_at, updated_at")
+    .single();
+
+  if (error) {
+    return { data: null, error };
+  }
+
+  return { data: data as AssessmentResponseRow, error: null };
+}
+
+export async function createAssessmentResult(input: {
+  organizationId: string;
+  templateId: string;
+  responseId: string;
+  assessmentId: string | null;
+  evaluation: ReturnType<typeof evaluateAssessment>;
+}): Promise<{ data: AssessmentResultRow | null; error: PostgrestError | null }> {
+  const supabase = getDatabaseClient();
+  const payload: AssessmentResultInsert = {
+    organization_id: input.organizationId,
+    template_id: input.templateId,
+    response_id: input.responseId,
+    assessment_id: input.assessmentId,
+    score: input.evaluation.score,
+    compliant_count: input.evaluation.compliantCount,
+    partial_count: input.evaluation.partialCount,
+    non_compliant_count: input.evaluation.nonCompliantCount,
+    summary: input.evaluation.summary,
+    gap_analysis: input.evaluation.gaps as unknown as AssessmentResultInsert["gap_analysis"],
+    recommendations:
+      input.evaluation.recommendations as unknown as AssessmentResultInsert["recommendations"],
+    domain_scores: input.evaluation.domainScores as unknown as AssessmentResultInsert["domain_scores"]
+  };
+  const { data, error } = await supabase
+    .from("assessment_results")
+    .insert(payload as never)
+    .select(
+      "id, organization_id, template_id, response_id, assessment_id, score, compliant_count, partial_count, non_compliant_count, summary, gap_analysis, recommendations, domain_scores, created_at, updated_at"
+    )
+    .single();
+
+  if (error) {
+    return { data: null, error };
+  }
+
+  return { data: data as AssessmentResultRow, error: null };
 }
