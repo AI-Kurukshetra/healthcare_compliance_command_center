@@ -1,9 +1,23 @@
+"use client";
+
+import { useEffect } from "react";
+
+import { AUTH_FLASH_COOKIE } from "@/lib/auth/cookie-names";
+
 type AuthMessagesProps = {
   error?: string;
   message?: string;
 };
 
 export function AuthMessages({ error, message }: AuthMessagesProps) {
+  useEffect(() => {
+    if (!error && !message) {
+      return;
+    }
+
+    document.cookie = `${AUTH_FLASH_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
+  }, [error, message]);
+
   if (!error && !message) {
     return null;
   }

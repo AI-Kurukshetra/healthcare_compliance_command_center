@@ -67,3 +67,110 @@ Project Structure
 /docs → documentation  
 
 Always explain architecture decisions before generating code.
+
+---
+
+# Application Behavior Standards
+
+These rules exist to prevent unstable behavior caused by AI generated code.
+
+## Clean URL Policy
+
+Application URLs must remain clean and minimal.
+
+Rules:
+
+- URLs must only contain the domain, path, and minimal identifiers.
+- Do NOT place UI messages, redirect information, or application state inside query parameters.
+- Do NOT pass status flags through URLs.
+
+Incorrect examples:
+
+/login?redirect=/dashboard&message=success  
+/dashboard?status=created&error=false  
+/incidents?created=true  
+
+Correct approach:
+
+URLs should represent navigation only.
+
+Examples:
+
+/login  
+/dashboard  
+/incidents  
+/risk-assessment/123  
+
+Application state must be handled using:
+
+- Supabase authentication session
+- Secure cookies
+- Server session
+- Database state
+
+Messages such as:
+
+- login success
+- error messages
+- action results
+
+must come from API responses or UI state — not URLs.
+
+---
+
+## Session and Authentication Handling
+
+User identity and application state must always be retrieved from session or cookies.
+
+Never rely on URL parameters for authentication or authorization.
+
+Required sources:
+
+- Supabase authentication session
+- HTTP-only secure cookies
+- Server-side session validation
+
+Never pass:
+
+- userId
+- role
+- permissions
+- auth tokens
+
+through URLs.
+
+---
+
+## Network Request UX
+
+Every network request must have visible user feedback.
+
+Rules:
+
+- show loading indicators during async operations
+- disable buttons during requests
+- prevent duplicate submissions
+- show success or error messages
+
+Examples:
+
+Form submit:
+- show spinner in button
+- disable submit button while processing
+
+Data loading:
+- show skeleton loaders
+- show loading indicator
+- handle empty state
+
+No network request should run silently without UI feedback.
+
+## UI Quality Check
+
+Before completing any UI feature the AI must verify:
+
+- responsive layout works on mobile
+- loading states exist
+- error states exist
+- URLs remain clean
+- no application state is passed through URLs

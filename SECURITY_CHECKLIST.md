@@ -13,3 +13,45 @@ Never allow:
 public PHI access
 unlogged data access
 cross-organization data leakage
+
+---
+
+# URL and Session Security
+
+Sensitive information must never be exposed in URLs.
+
+Do NOT place the following in query parameters:
+
+- authentication tokens
+- user identifiers
+- roles or permissions
+- system status flags
+- internal application state
+- compliance information
+- error or success messages
+
+Reasons:
+
+- URLs can appear in browser history
+- URLs may be logged by servers
+- URLs can be cached
+- URLs may be shared unintentionally
+
+Incorrect example:
+
+/dashboard?role=admin&loginSuccess=true
+
+Correct approach:
+
+The server must determine:
+
+- authenticated user
+- user role
+- permissions
+- application state
+
+by reading:
+
+- Supabase session
+- secure cookies
+- backend database state

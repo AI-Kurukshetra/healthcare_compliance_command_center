@@ -1,18 +1,17 @@
 import { registerAction } from "@/lib/auth/actions";
 
 import { AuthMessages } from "@/components/forms/auth-messages";
+import { SubmitButton } from "@/components/forms/submit-button";
 
 type RegisterFormProps = {
   error?: string;
   message?: string;
-  redirectTo?: string;
 };
 
-export function RegisterForm({ error, message, redirectTo = "/dashboard" }: RegisterFormProps) {
+export function RegisterForm({ error, message }: RegisterFormProps) {
   return (
     <form action={registerAction} className="space-y-5">
       <AuthMessages error={error} message={message} />
-      <input type="hidden" name="redirectTo" value={redirectTo} />
 
       <div className="grid gap-2">
         <label className="text-sm font-semibold text-ink" htmlFor="organization-name">
@@ -93,12 +92,12 @@ export function RegisterForm({ error, message, redirectTo = "/dashboard" }: Regi
         </div>
       </div>
 
-      <button
-        type="submit"
-        className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-ink/90"
+      <SubmitButton
+        pendingLabel="Creating account..."
+        className="min-h-[48px] w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-ink/90"
       >
-        Create organization account
-      </button>
+        Create Account
+      </SubmitButton>
     </form>
   );
 }

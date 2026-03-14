@@ -1,20 +1,19 @@
 import { loginWithPasswordAction, sendMagicLinkAction } from "@/lib/auth/actions";
 
 import { AuthMessages } from "@/components/forms/auth-messages";
+import { SubmitButton } from "@/components/forms/submit-button";
 
 type LoginFormProps = {
   error?: string;
   message?: string;
-  redirectTo?: string;
 };
 
-export function LoginForm({ error, message, redirectTo = "/dashboard" }: LoginFormProps) {
+export function LoginForm({ error, message }: LoginFormProps) {
   return (
     <div className="space-y-8">
       <AuthMessages error={error} message={message} />
 
       <form action={loginWithPasswordAction} className="space-y-5">
-        <input type="hidden" name="redirectTo" value={redirectTo} />
         <div className="grid gap-2">
           <label className="text-sm font-semibold text-ink" htmlFor="login-email">
             Work email
@@ -46,12 +45,12 @@ export function LoginForm({ error, message, redirectTo = "/dashboard" }: LoginFo
           />
         </div>
 
-        <button
-          type="submit"
-          className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-ink/90"
+        <SubmitButton
+          pendingLabel="Signing in..."
+          className="min-h-[48px] w-full rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-ink/90"
         >
           Sign in with password
-        </button>
+        </SubmitButton>
       </form>
 
       <div className="flex items-center gap-4">
@@ -61,7 +60,6 @@ export function LoginForm({ error, message, redirectTo = "/dashboard" }: LoginFo
       </div>
 
       <form action={sendMagicLinkAction} className="space-y-5">
-        <input type="hidden" name="redirectTo" value={redirectTo} />
         <div className="grid gap-2">
           <label className="text-sm font-semibold text-ink" htmlFor="magic-link-email">
             Passwordless sign-in email
@@ -77,12 +75,12 @@ export function LoginForm({ error, message, redirectTo = "/dashboard" }: LoginFo
           />
         </div>
 
-        <button
-          type="submit"
-          className="w-full rounded-2xl border border-ocean/20 bg-ocean/5 px-4 py-3 text-sm font-semibold text-ocean transition hover:bg-ocean/10"
+        <SubmitButton
+          pendingLabel="Sending link..."
+          className="min-h-[48px] w-full rounded-2xl border border-ocean/20 bg-ocean/5 px-4 py-3 text-sm font-semibold text-ocean transition hover:bg-ocean/10"
         >
           Email me a magic link
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

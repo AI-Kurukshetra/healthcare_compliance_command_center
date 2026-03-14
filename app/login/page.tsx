@@ -1,31 +1,21 @@
+import { cookies } from "next/headers";
+
 import { LoginForm } from "@/components/forms/login-form";
 import { AuthShell } from "@/components/layout/auth-shell";
-import { sanitizeRedirectTo } from "@/lib/auth/service";
+import { getAuthFlash } from "@/lib/auth/state";
 
-type LoginPageProps = {
-  searchParams?: {
-    error?: string;
-    message?: string;
-    redirectTo?: string;
-  };
-};
-
-export default function LoginPage({ searchParams }: LoginPageProps) {
-  const redirectTo = sanitizeRedirectTo(searchParams?.redirectTo);
+export default function LoginPage() {
+  const flash = getAuthFlash(cookies());
 
   return (
     <AuthShell
       badge="Login"
-      title="Sign in to the compliance workspace."
-      description="Use your password for direct access or request a magic link when you need a passwordless sign-in flow. Protected routes redirect here automatically."
+      title="Access your healthcare compliance workspace."
+      description="Sign in to review policy attestations, incident escalations, vendor oversight, and audit evidence from one secure platform."
       alternateHref="/register"
-      alternateLabel="Create account"
+      alternateLabel="Create Account"
     >
-      <LoginForm
-        error={searchParams?.error}
-        message={searchParams?.message}
-        redirectTo={redirectTo}
-      />
+      <LoginForm error={flash.error} message={flash.message} />
     </AuthShell>
   );
 }

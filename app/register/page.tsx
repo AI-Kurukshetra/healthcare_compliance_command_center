@@ -1,31 +1,21 @@
+import { cookies } from "next/headers";
+
 import { RegisterForm } from "@/components/forms/register-form";
 import { AuthShell } from "@/components/layout/auth-shell";
-import { sanitizeRedirectTo } from "@/lib/auth/service";
+import { getAuthFlash } from "@/lib/auth/state";
 
-type RegisterPageProps = {
-  searchParams?: {
-    error?: string;
-    message?: string;
-    redirectTo?: string;
-  };
-};
-
-export default function RegisterPage({ searchParams }: RegisterPageProps) {
-  const redirectTo = sanitizeRedirectTo(searchParams?.redirectTo);
+export default function RegisterPage() {
+  const flash = getAuthFlash(cookies());
 
   return (
     <AuthShell
       badge="Registration"
-      title="Create your compliance management account."
-      description="The first registered user is stored as the initial admin for the organization context captured during sign-up. Email confirmation remains compatible with Supabase Auth settings."
+      title="Set up your healthcare compliance command center."
+      description="Create the first admin account for your organization and start centralizing policy management, audit readiness, and incident response workflows."
       alternateHref="/login"
-      alternateLabel="Back to login"
+      alternateLabel="Back to Login"
     >
-      <RegisterForm
-        error={searchParams?.error}
-        message={searchParams?.message}
-        redirectTo={redirectTo}
-      />
+      <RegisterForm error={flash.error} message={flash.message} />
     </AuthShell>
   );
 }

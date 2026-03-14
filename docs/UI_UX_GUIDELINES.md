@@ -119,3 +119,76 @@ The UI must be accessible:
 - readable font sizes
 - keyboard navigation support
 - clear focus states
+
+
+# Loading and Network States
+
+Every network interaction must display a visible loading state.
+
+Required behaviors:
+
+Data Fetching
+- show skeleton loaders
+- show loading indicators for dashboards and tables
+
+Form Submissions
+- disable submit buttons
+- show spinner in submit button
+- prevent duplicate requests
+
+Background operations
+- show toast notifications for success
+- show toast notifications for errors
+
+Users must always know when the system is processing a request.
+
+Silent network operations are not allowed.
+
+---
+
+# UI Layout Stability
+
+UI must remain stable and consistent in all scenarios.
+
+The layout must work correctly when:
+
+- data is loading
+- data is empty
+- network request fails
+- screen size changes
+
+Rules:
+
+- prevent overflowing layouts
+- prevent broken grids
+- maintain consistent spacing
+- maintain proper alignment
+
+Tables must support:
+
+- responsive layouts
+- scroll behavior on small screens
+
+Forms must:
+
+- stack vertically on mobile
+- maintain readable spacing
+
+---
+
+# Error Feedback
+
+Users must receive clear feedback for failures.
+
+Error messages must appear when:
+
+- form validation fails
+- API request fails
+- permission errors occur
+- session expires
+
+Use:
+
+- inline validation messages
+- alert components
+- toast notifications

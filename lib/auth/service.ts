@@ -59,10 +59,8 @@ export function getBaseUrl() {
   return "http://localhost:3000";
 }
 
-export function buildAuthCallbackUrl(redirectTo?: string | null) {
-  const nextPath = sanitizeRedirectTo(redirectTo);
+export function buildAuthCallbackUrl() {
   const callbackUrl = new URL("/auth/callback", getBaseUrl());
-  callbackUrl.searchParams.set("next", nextPath);
 
   return callbackUrl.toString();
 }

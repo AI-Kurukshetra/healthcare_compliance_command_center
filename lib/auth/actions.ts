@@ -1,6 +1,7 @@
 "use server";
 
 import { randomUUID } from "crypto";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ZodType, infer as ZodInfer } from "zod";
 
@@ -9,9 +10,15 @@ import {
   ensureAuthAccountRecords,
   recordLoginEvent,
   recordLogoutEvent,
-  safelyRunAuthSideEffect,
-  sanitizeRedirectTo
+  safelyRunAuthSideEffect
 } from "@/lib/auth/service";
+import {
+  clearAuthFlash,
+  clearAuthRedirectTarget,
+  getAuthRedirectTarget,
+  setAuthFlash,
+  setAuthRedirectTarget
+} from "@/lib/auth/state";
 import { loginWithPasswordSchema, magicLinkSchema, registerSchema } from "@/lib/auth/schemas";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,15 +28,13 @@ function getFieldValue(formData: FormData, fieldName: string) {
 }
 
 function redirectWithError(pathname: string, message: string) {
-  const url = new URL(pathname, "http://localhost");
-  url.searchParams.set("error", message);
-  redirect(`${url.pathname}?${url.searchParams.toString()}`);
+  setAuthFlash("error", message, cookies());
+  redirect(pathname);
 }
 
 function redirectWithMessage(pathname: string, message: string) {
-  const url = new URL(pathname, "http://localhost");
-  url.searchParams.set("message", message);
-  redirect(`${url.pathname}?${url.searchParams.toString()}`);
+  setAuthFlash("message", message, cookies());
+  redirect(pathname);
 }
 
 function parseOrRedirect<Schema extends ZodType>(
@@ -52,15 +57,15 @@ export async function loginWithPasswordAction(formData: FormData) {
     loginWithPasswordSchema,
     {
       email: getFieldValue(formData, "email"),
-      password: getFieldValue(formData, "password"),
-      redirectTo: getFieldValue(formData, "redirectTo")
+      password: getFieldValue(formData, "password")
     },
     "/login",
     "Invalid login details."
   );
 
+  const cookieStore = cookies();
   const supabase = createClient();
-  const redirectTo = sanitizeRedirectTo(values.redirectTo);
+  const redirectTo = getAuthRedirectTarget(cookieStore);
   const { data, error } = await supabase.auth.signInWithPassword({
     email: values.email,
     password: values.password
@@ -80,6 +85,8 @@ export async function loginWithPasswordAction(formData: FormData) {
     await recordLoginEvent(user, "password");
   });
 
+  clearAuthFlash(cookieStore);
+  clearAuthRedirectTarget(cookieStore);
   redirect(redirectTo);
 }
 
@@ -87,18 +94,20 @@ export async function sendMagicLinkAction(formData: FormData) {
   const values = parseOrRedirect(
     magicLinkSchema,
     {
-      email: getFieldValue(formData, "email"),
-      redirectTo: getFieldValue(formData, "redirectTo")
+      email: getFieldValue(formData, "email")
     },
     "/login",
     "Invalid email address."
   );
 
+  const cookieStore = cookies();
+  const redirectTo = getAuthRedirectTarget(cookieStore);
+  setAuthRedirectTarget(redirectTo, cookieStore);
   const supabase = createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email: values.email,
     options: {
-      emailRedirectTo: buildAuthCallbackUrl(values.redirectTo)
+      emailRedirectTo: buildAuthCallbackUrl()
     }
   });
 
@@ -117,21 +126,22 @@ export async function registerAction(formData: FormData) {
       fullName: getFieldValue(formData, "fullName"),
       email: getFieldValue(formData, "email"),
       password: getFieldValue(formData, "password"),
-      confirmPassword: getFieldValue(formData, "confirmPassword"),
-      redirectTo: getFieldValue(formData, "redirectTo")
+      confirmPassword: getFieldValue(formData, "confirmPassword")
     },
     "/register",
     "Invalid registration details."
   );
 
   const organizationId = randomUUID();
-  const redirectTo = sanitizeRedirectTo(values.redirectTo);
+  const cookieStore = cookies();
+  const redirectTo = getAuthRedirectTarget(cookieStore);
+  setAuthRedirectTarget(redirectTo, cookieStore);
   const supabase = createClient();
   const { data, error } = await supabase.auth.signUp({
     email: values.email,
     password: values.password,
     options: {
-      emailRedirectTo: buildAuthCallbackUrl(redirectTo),
+      emailRedirectTo: buildAuthCallbackUrl(),
       data: {
         full_name: values.fullName,
         organization_id: organizationId,
@@ -152,6 +162,8 @@ export async function registerAction(formData: FormData) {
       await ensureAuthAccountRecords(user);
       await recordLoginEvent(user, "password");
     });
+    clearAuthFlash(cookieStore);
+    clearAuthRedirectTarget(cookieStore);
     redirect(redirectTo);
   }
 
@@ -162,6 +174,7 @@ export async function registerAction(formData: FormData) {
 }
 
 export async function logoutAction() {
+  const cookieStore = cookies();
   const supabase = createClient();
   const {
     data: { user }
@@ -175,5 +188,6 @@ export async function logoutAction() {
 
   await supabase.auth.signOut();
 
+  clearAuthRedirectTarget(cookieStore);
   redirectWithMessage("/login", "You have been signed out.");
 }

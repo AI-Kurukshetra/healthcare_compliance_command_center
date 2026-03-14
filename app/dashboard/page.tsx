@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { SubmitButton } from "@/components/forms/submit-button";
 import { logoutAction } from "@/lib/auth/actions";
 import { getDatabaseClient } from "@/lib/db";
 
@@ -10,7 +11,7 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?redirectTo=/dashboard");
+    redirect("/login");
   }
 
   return (
@@ -40,12 +41,12 @@ export default async function DashboardPage() {
             </div>
           </dl>
           <form action={logoutAction} className="mt-8">
-            <button
-              type="submit"
+            <SubmitButton
+              pendingLabel="Signing out..."
               className="rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-semibold text-ink transition hover:border-ink/20 hover:bg-ink/5"
             >
               Sign out
-            </button>
+            </SubmitButton>
           </form>
         </section>
       </div>
